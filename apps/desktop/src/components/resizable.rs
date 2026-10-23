@@ -69,16 +69,21 @@ impl ResizablePanelGroup {
         cx: &mut Context<Self>,
     ) {
         let bounds = event.bounds;
-        let fraction = match self.orientation {
-            Orientation::Horizontal => {
-                (event.event.position.x - bounds.left()) / (bounds.right() - bounds.left())
-            }
-            Orientation::Vertical => {
-                (event.event.position.y - bounds.top()) / (bounds.bottom() - bounds.top())
-            }
+        let (position, start, end) = match self.orientation {
+            Orientation::Horizontal => (event.event.position.x, bounds.left(), bounds.right()),
+            Orientation::Vertical => (event.event.position.y, bounds.top(), bounds.bottom()),
         };
 
-        self.fraction = self.clamp_fraction(fraction);
+        // A collapsed panel group (zero width or height, e.g. before the window
+        // is laid out) divides by zero. `px` is float-backed, so this yields inf
+        // or NaN rather than panicking, but both then reach `relative(..)` and
+        // corrupt the layout. Ignore the drag instead of storing a bad fraction.
+        let span = end - start;
+        if span <= 0.0 {
+            return;
+        }
+
+        self.fraction = self.clamp_fraction((position - start) / span);
         cx.notify();
     }
 
